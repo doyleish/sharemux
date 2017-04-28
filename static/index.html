@@ -1,0 +1,19 @@
+Web side:
+
+instantiate xterm
+instantiate websocket
+On socket msg receive:
+    write data to term
+
+Maybe split pty into pieces such as bottom bar and 
+buffer contents and send seperately to save a little network
+
+
+Server side:
+child of fork will do nothing but the subprocess for attaching
+to the tmux session.  force size at this point? 
+
+Parent process will go on to start a flask server that serves
+the static content and also starts the websocket.  Not sure how
+I'm going to implement the hot-reload of the data.  inotify?
+
