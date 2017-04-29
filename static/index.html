@@ -27,9 +27,13 @@ I'm going to implement the hot-reload of the data.  inotify?
     <script src="jquery/jquery-min.js"></script>
   </head>
   <body>
-    <div id="terminal"></div>
+    
+    <center>
+      <h2>Session: <b>test</b></h2>
+      <div id="terminal" style="width: 1553px;"></div>
+    </center>
     <script>
-      var term = new Terminal();
+      var term = new Terminal(160, 38);
       term.open(document.getElementById('terminal'));
       function runloop(index){
         $.ajax({

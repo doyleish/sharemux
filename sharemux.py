@@ -1,18 +1,17 @@
-import os, pty, subprocess,time
-from flask import Flask, send_from_directory
+import os, pexpect
+
+import time
+
 from multiprocessing import Process, Manager
 
-child, fd = pty.fork()
+from flask import Flask, send_from_directory
 
-if child==0:
-    p = subprocess.Popen(["/usr/bin/tmux", "a", "-t", "test"], stdout=fd, stderr=fd, bufsize=10000)
-    p.wait()
-    exit(1)
+tmux_proc = pexpect.spawn("/usr/bin/tmux", args=["a", "-t", "test"], maxread=10000, dimensions=(38,160))
 
 mgr = Manager()
 stack = mgr.list([])
-app = Flask(__name__, static_url_path='/static')
 
+app = Flask(__name__, static_url_path='/static')
 @app.route('/xterm/<path:path>')
 def serve_xterm(path):
     return send_from_directory('static/xterm', path)
@@ -38,11 +37,14 @@ def serve_snapshot(inc):
 
 def stack_pusher(stack):
     while(True):
-        stack.append(os.read(fd, 10000))
+        stack.append(os.read(tmux_proc.fileno(), 10000))
 
+def start_app(app):
+    app.run(host='0.0.0.0', port=5893, processes=20)
 
 if __name__ == "__main__":
-    p = Process(target=stack_pusher, args=(stack,))
-    p.start()
-    app.run(host='0.0.0.0', port=5893, processes=20)
-    p.join()
+
+    app.stack = stack
+    Process(target=start_app, args=(app,)).start()
+    
+    stack_pusher(stack)
