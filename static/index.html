@@ -1,3 +1,4 @@
+<!--
 Web side:
 
 instantiate xterm
@@ -16,4 +17,37 @@ to the tmux session.  force size at this point?
 Parent process will go on to start a flask server that serves
 the static content and also starts the websocket.  Not sure how
 I'm going to implement the hot-reload of the data.  inotify?
+-->
 
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="xterm/xterm.css" />
+    <script src="xterm/xterm.js"></script>
+    <script src="jquery/jquery-min.js"></script>
+  </head>
+  <body>
+    <div id="terminal"></div>
+    <script>
+      var term = new Terminal();
+      term.open(document.getElementById('terminal'));
+      function runloop(index){
+        $.ajax({
+            url: 'snapshot/'+index,
+            type: 'GET',
+            timeout: 600000,
+            error: function(){
+                return false;
+            },
+            success: function(data){
+                console.log(data);
+                term.write(data);
+                runloop(index+1);
+                return true;
+            }
+        });
+      }
+      runloop(0);
+    </script>
+  </body>
+</html>
