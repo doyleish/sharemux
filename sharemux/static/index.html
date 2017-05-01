@@ -6,13 +6,13 @@ instantiate websocket
 On socket msg receive:
     write data to term
 
-Maybe split pty into pieces such as bottom bar and 
+Maybe split pty into pieces such as bottom bar and
 buffer contents and send seperately to save a little network
 
 
 Server side:
 child of fork will do nothing but the subprocess for attaching
-to the tmux session.  force size at this point? 
+to the tmux session.  force size at this point?
 
 Parent process will go on to start a flask server that serves
 the static content and also starts the websocket.  Not sure how
@@ -21,20 +21,32 @@ I'm going to implement the hot-reload of the data.  inotify?
 
 <!doctype html>
 <html>
+  <style>
+    .xterm-viewport {
+        overflow-y: hidden !important; 
+    }
+  </style>
+
   <head>
     <link rel="stylesheet" href="xterm/xterm.css" />
     <script src="xterm/xterm.js"></script>
     <script src="jquery/jquery-min.js"></script>
   </head>
+
   <body>
-    
     <center>
-      <h2>Session: <b>test</b></h2>
+      <h2>Session: <b id="session_name">____</b></h2>
       <div id="terminal" style="width: 1553px;"></div>
     </center>
     <script>
-      var term = new Terminal(160, 38);
-      term.open(document.getElementById('terminal'));
+      document.term = null;
+      $.getJSON('info', function(data){
+        document.term = new Terminal(data.columns, data.rows);
+        $('#terminal').css('width', Math.ceil(9.6*data.columns));
+        $('#session_name').text(data.session);
+        document.term.open(document.getElementById('terminal'));
+        runloop(0);
+      });
       function runloop(index){
         $.ajax({
             url: 'snapshot/'+index,
@@ -44,14 +56,12 @@ I'm going to implement the hot-reload of the data.  inotify?
                 return false;
             },
             success: function(data){
-                console.log(data);
-                term.write(data);
+                document.term.write(data);
                 runloop(index+1);
                 return true;
             }
         });
       }
-      runloop(0);
     </script>
   </body>
 </html>
