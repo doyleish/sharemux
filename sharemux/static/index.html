@@ -43,12 +43,12 @@ I'm going to implement the hot-reload of the data.  inotify?
       function decode_and_write(event){
         document.term.write(atob(event.data));
       }
-      $.getJSON('info', function(data){
+      $.getJSON('register', function(data){
         document.term = new Terminal(data.columns, data.rows);
         $('#terminal').css('width', Math.ceil(9.6*data.columns));
         $('#session_name').text(data.session);
         document.term.open(document.getElementById('terminal'));
-        var source = new EventSource("snapshotstream");
+        var source = new EventSource("snapshotstream/"+data.consumer_id);
         source.onmessage = decode_and_write;
       });
     </script>
