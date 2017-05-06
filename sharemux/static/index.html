@@ -40,28 +40,17 @@ I'm going to implement the hot-reload of the data.  inotify?
     </center>
     <script>
       document.term = null;
+      function decode_and_write(event){
+        document.term.write(atob(event.data));
+      }
       $.getJSON('info', function(data){
         document.term = new Terminal(data.columns, data.rows);
         $('#terminal').css('width', Math.ceil(9.6*data.columns));
         $('#session_name').text(data.session);
         document.term.open(document.getElementById('terminal'));
-        runloop(0);
+        var source = new EventSource("snapshotstream");
+        source.onmessage = decode_and_write;
       });
-      function runloop(index){
-        $.ajax({
-            url: 'snapshot/'+index,
-            type: 'GET',
-            timeout: 600000,
-            error: function(){
-                return false;
-            },
-            success: function(data){
-                document.term.write(data);
-                runloop(index+1);
-                return true;
-            }
-        });
-      }
     </script>
   </body>
 </html>

@@ -1,13 +1,13 @@
 import os, pexpect, time, socket    # pty io + control
-from multiprocessing import Process, Manager, Condition  # Threading
-from flask import Flask, send_from_directory   # www Hosting
-import click, logging, json   #Misc
+from multiprocessing import Process, Manager  # Threading
+from flask import Flask, Response, send_from_directory   # www Hosting
+import click, logging, json, base64   #Misc
 
 
 # Share a stream and some state accross child Process
 mgr = Manager()
 state = mgr.dict()
-stream = mgr.list([""])
+stream = mgr.list([])
 
 # app def
 app = Flask(__name__, static_url_path='/static')
@@ -23,17 +23,18 @@ def serve_jquery(path):
 def serve_index():
     return app.send_static_file('index.html')
 
-@app.route('/snapshot/<inc>')
-def serve_snapshot(inc):
-    app.notifier.acquire()
-    inc = int(inc)
-    if inc<=state['step']:
-        app.notifier.release()
-        return stream[inc]
-    else:
-        app.notifier.wait()
-        app.notifier.release()
-        return stream[inc]
+@app.route('/snapshotstream')
+def serve_snapshot():
+    def gen():
+        inc = 0
+        while True:
+            while inc>=len(stream):
+                time.sleep(0.03)
+            yield "data: "
+            yield base64.b64encode(stream[inc])
+            yield "\n\n"
+            inc+=1
+    return Response(gen(), mimetype="text/event-stream")
 
 @app.route('/info')
 def info():
@@ -43,14 +44,9 @@ def info():
               'columns': state['columns']
            })
 
-def stream_pusher(tmux_proc, notifier):
+def stream_pusher(tmux_proc):
     while(True):
-        stream.append(os.read(tmux_proc.fileno(), 32768))
-        notifier.acquire()
-        state['step']+=1
-        notifier.notify_all()
-        app.notifier.release()
-
+        stream.append(bytes(os.read(tmux_proc.fileno(), 32768)))
 
 def start_app(app, port):
     log = logging.getLogger('werkzeug')
@@ -66,16 +62,12 @@ def cli(session, rows, columns, port):
     state['session'] = session
     state['rows'] = rows
     state['columns'] = columns
-    state['step'] = 0
 
     # Child proc #1 spawns pty. 6k read buffer should be optimal
     tmux_proc = pexpect.spawn("/usr/bin/tmux", args=["a", "-t", session], maxread=32768, dimensions=(rows, columns))
     
-    notifier = Condition()
-    app.notifier = notifier
-
     # Process(target=start_app, args=(app,)).start() 
-    Process(target=stream_pusher, args=(tmux_proc, notifier)).start()
+    Process(target=stream_pusher, args=(tmux_proc, )).start()
     print('http://{}:{}'.format(socket.gethostname(), port))
 
     # stream_pusher(tmux_proc)
