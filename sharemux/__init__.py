@@ -47,6 +47,12 @@ def snapshotstream(cid):
         try:
             while True:
                 data = streams[cid].get()
+                if data == "EOF":
+                    print("  Terminating consumer {}'s stream...".format(cid))
+                    yield "data: "
+                    yield "EOF"
+                    yield "\n\n"
+                    break
                 yield "data: "
                 yield data
                 yield "\n\n"
@@ -94,6 +100,10 @@ def stream_pusher(tmux_proc):
     except KeyboardInterrupt:
         print("  Cleaning up pty...")
         return
+    except OSError:
+        print("  Encountered read error. tmux proc likely ended")
+        for s in streams[0:state['num_consumers']]:
+            s.put("EOF")
 
 
 def start_app(app, port):
