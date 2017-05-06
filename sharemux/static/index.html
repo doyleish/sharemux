@@ -1,24 +1,3 @@
-<!--
-Web side:
-
-instantiate xterm
-instantiate websocket
-On socket msg receive:
-    write data to term
-
-Maybe split pty into pieces such as bottom bar and
-buffer contents and send seperately to save a little network
-
-
-Server side:
-child of fork will do nothing but the subprocess for attaching
-to the tmux session.  force size at this point?
-
-Parent process will go on to start a flask server that serves
-the static content and also starts the websocket.  Not sure how
-I'm going to implement the hot-reload of the data.  inotify?
--->
-
 <!doctype html>
 <html>
   <style>
@@ -35,15 +14,28 @@ I'm going to implement the hot-reload of the data.  inotify?
 
   <body>
     <center>
-      <h2>Session: <b id="session_name">____</b></h2>
+      <h2>Session: <b id="session_name">____</b><span id="closed" style="display: none">(closed)</span></h2>
       <div id="terminal" style="width: 1553px;"></div>
     </center>
     <script>
       document.term = null;
-      function decode_and_write(event){
-        document.term.write(atob(event.data));
+
+      function b64DecodeUnicode(str) {
+        // Fix for %-encoded chars such as line drawing chars and other misc unicode
+        return decodeURIComponent(atob(str).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
       }
-      $.getJSON('register', function(data){
+
+      function decode_and_write(event){
+        if(event.data === "EOF"){
+          event.target.close();
+          $('#closed').css('display', 'inline');
+          return null;
+        }
+        document.term.write(b64DecodeUnicode(event.data));
+      }
+      $.getJSON('register/'+(new Date).getTime(), function(data){
         document.term = new Terminal(data.columns, data.rows);
         $('#terminal').css('width', Math.ceil(9.6*data.columns));
         $('#session_name').text(data.session);

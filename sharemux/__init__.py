@@ -4,19 +4,21 @@ import socket
 
 from multiprocessing import Process, Manager, Queue  # Threading
 
-from flask import Flask, Response, send_from_directory   # www Hosting
+from flask import Flask, Response, send_from_directory, request   # www Hosting
 
 import click  # Misc
 import logging
 import json
 import base64
+import time
 
 
 # Share a stream and some state accross child Process
 mgr = Manager()
 state = mgr.dict()
 master = mgr.list([])
-streams = [Queue() for x in range(0, 256)]
+STREAM_STACK_MAX = 256
+streams = [Queue() for x in range(0, STREAM_STACK_MAX)]
 
 app = Flask(__name__, static_url_path='/static')
 
@@ -37,46 +39,67 @@ def serve_index():
 
 
 @app.route('/snapshotstream/<cid>')
-def serve_snapshot(cid):
+def snapshotstream(cid):
     cid = int(cid)
 
     def gen():
         inc = 0
-        while True:
-            data = streams[cid].get()
+        try:
+            while True:
+                data = streams[cid].get()
+                yield "data: "
+                yield data
+                yield "\n\n"
+                inc += 1
+        except KeyboardInterrupt:
+            print("  Terminating consumer {}'s stream...".format(cid))
             yield "data: "
-            yield base64.b64encode(data)
+            yield "EOF"
             yield "\n\n"
-            inc += 1
     return Response(gen(), mimetype="text/event-stream")
 
 
-@app.route('/register')
-def info():
+@app.route('/register/<uid>')
+def register(uid):
     consumer_id = state['num_consumers']
+    if consumer_id >= STREAM_STACK_MAX:
+        return json.dumps({
+                   'session': 'STACK MAX EXCEEDED',
+                   'rows': state['rows'],
+                   'columns': state['columns']
+               })
     for item in master:
         streams[consumer_id].put(item)
     state['num_consumers'] += 1
+    print("  [{}] registered as consumer {} at {}".format(
+                                                     request.remote_addr,
+                                                     consumer_id,
+                                                     time.strftime("%H:%M:%S")
+                                                 ))
     return json.dumps({
-              'session': state['session'],
-              'rows': state['rows'],
-              'columns': state['columns'],
-              'consumer_id': consumer_id
+               'session': state['session'],
+               'rows': state['rows'],
+               'columns': state['columns'],
+               'consumer_id': consumer_id
            })
 
 
 def stream_pusher(tmux_proc):
-    while(True):
-        data = bytes(os.read(tmux_proc.fileno(), 32768))
-        master.append(data)
-        for s in streams[0:state['num_consumers']]:
-            s.put(data)
+    try:
+        while(True):
+            data = base64.b64encode(os.read(tmux_proc.fileno(), 32768))
+            master.append(data)
+            for s in streams[0:state['num_consumers']]:
+                s.put(data)
+    except KeyboardInterrupt:
+        print("  Cleaning up pty...")
+        return
 
 
 def start_app(app, port):
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
-    app.run(host='0.0.0.0', port=port, processes=20)
+    app.run(host='0.0.0.0', port=port, processes=30)
 
 
 @click.command()
@@ -90,6 +113,10 @@ def cli(session, rows, columns, port):
     state['columns'] = columns
     state['num_consumers'] = 0
 
+    print('[[ SHAREMUX ]]')
+    print('^C to Stop')
+    print('--help for options')
+
     # Child proc #1 spawns pty. 6k read buffer should be optimal
     tmux_proc = pexpect.spawn("/usr/bin/tmux",
                               args=["a", "-t", session],
@@ -102,3 +129,4 @@ def cli(session, rows, columns, port):
 
     # stream_pusher(tmux_proc)
     start_app(app, port)
+    print('Closing...')
