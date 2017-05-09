@@ -124,11 +124,25 @@ def cli(session, rows, columns, port):
     state['num_consumers'] = 0
 
     print('[[ SHAREMUX ]]')
+    
+    # Find where tmux lives
+    tmux_path=""
+    for path in os.environ['PATH'].split(os.pathsep):
+        potential_path = os.path.join(path,'tmux')
+        if os.path.exists(potential_path):
+            tmux_path = potential_path
+            break
+    
+    if not tmux_path:
+        print('Looks like you don\'t have tmux installed.')
+        print('Please install tmux and be sure it is in your PATH')
+        exit(1)
+
     print('^C to Stop')
     print('--help for options')
-
-    # Child proc #1 spawns pty. 6k read buffer should be optimal
-    tmux_proc = pexpect.spawn("/usr/bin/tmux",
+    
+    # Child proc #1 spawns pty. 32k read buffer should be optimal
+    tmux_proc = pexpect.spawn(tmux_path,
                               args=["a", "-t", session],
                               maxread=32768,
                               dimensions=(rows, columns))
