@@ -2,7 +2,25 @@
 <html>
   <style>
     .xterm-viewport {
-        overflow-y: hidden !important; 
+        overflow-y: hidden !important;
+    }
+    h2 {
+      margin: 10px;
+    }
+    .header {
+      color: #2a3438;
+      background-color: #eee8d5;
+      margin: 20px;
+      padding: 0px 10px;
+      width: 1516px;
+      text-align: left;
+      border: outset;
+      border-width: 7px
+    }
+    .terminal {
+      width: 1536px;
+      border: outset;
+      border-width: 7px
     }
   </style>
 
@@ -12,10 +30,15 @@
     <script src="jquery/jquery-min.js"></script>
   </head>
 
-  <body>
+  <body bgcolor="#073642">
     <center>
-      <h2>Session: <b id="session_name">____</b><span id="closed" style="display: none">(closed)</span></h2>
-      <div id="terminal" style="width: 1553px;"></div>
+      <font face="arial">
+        <div id="header" class="header">
+        <h2><b>[[ -- SHAREMUX -- ]]</b></h2>
+        <h2>Session: "<span id="session_name">____</span>" <span id="closed" style="color: #dc322f; display: none">(closed)</span></h2>
+        </div>
+      </font>
+      <div id="terminal" class="terminal"></div>
     </center>
     <script>
       document.term = null;
